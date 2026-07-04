@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פריז — מומלצי הפודיז</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  #app { display: flex; flex-direction: column; height: 100%; }
+  header {
+    background: #1f2937; color: #fff; padding: 10px 16px;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  header h1 { font-size: 18px; font-weight: 700; }
+  header .sub { font-size: 12px; color: #d1d5db; width: 100%; }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+  .filters button {
+    border: 2px solid transparent; border-radius: 20px; padding: 5px 14px;
+    font-size: 14px; font-weight: 600; cursor: pointer; color: #fff; opacity: 0.95;
+  }
+  .filters button.off { opacity: 0.35; }
+  .b-louvre { background: #2563eb; }
+  .b-marais { background: #dc2626; }
+  .b-eiffel { background: #059669; }
+  .b-patiss { background: #7c3aed; }
+  .b-pasta { background: #ea580c; }
+  .b-choco { background: #92400e; }
+  .b-fashion { background: #db2777; }
+  .b-shoes { background: #0891b2; }
+  .b-brunch { background: #f59e0b; }
+  #map { flex: 1; }
+  .popup { direction: rtl; text-align: right; min-width: 190px; }
+  .popup h3 { font-size: 15px; margin-bottom: 2px; }
+  .popup .type { font-size: 12px; color: #6b7280; margin-bottom: 4px; }
+  .popup .note { font-size: 13px; margin-bottom: 6px; }
+  .popup .addr { font-size: 12px; color: #6b7280; direction: ltr; text-align: right; margin-bottom: 6px; }
+  .popup a {
+    display: inline-block; background: #2563eb; color: #fff; text-decoration: none;
+    border-radius: 6px; padding: 4px 10px; font-size: 13px; font-weight: 600;
+  }
+  .leaflet-popup-content { margin: 12px 14px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>🥐 פריז — מומלצי הפודיז</h1>
+    <div class="filters">
+      <button id="f-louvre" class="b-louvre">רובע 1 / לובר</button>
+      <button id="f-marais" class="b-marais">המארה</button>
+      <button id="f-eiffel" class="b-eiffel">מגדל אייפל</button>
+      <button id="f-patiss" class="b-patiss">🧁 פטיסרי</button>
+      <button id="f-pasta" class="b-pasta">🍝 איטלקי</button>
+      <button id="f-choco" class="b-choco">🍫 שוקולד</button>
+      <button id="f-fashion" class="b-fashion">👗 אופנה</button>
+      <button id="f-shoes" class="b-shoes">👟 נעליים</button>
+      <button id="f-brunch" class="b-brunch">🍳 בוקר</button>
+    </div>
+    <div class="sub">נבחר לפי Paris by Mouth · Le Fooding · The Infatuation — מחירים שפויים, בלי מלכודות תיירים</div>
+  </header>
+  <div id="map"></div>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const PLACES = [
+  // ===== רובע 1 / לובר =====
+  { g:"louvre", name:"Juveniles", type:"ביסטרו יין", note:"הבחירה מס' 1 של Paris by Mouth לאזור — קטן, חם, מנות ~20€ ורשימת יינות ששווה לחקור.", addr:"47 Rue de Richelieu, 75001", lat:48.86600, lng:2.33720 },
+  { g:"louvre", name:"Verjus Bar à Vins", type:"בר יין", note:"בר היין של Verjus — צלחות קטנות מעולות במחיר שפוי, בלי הזמנה מראש.", addr:"52 Rue de Richelieu, 75001", lat:48.86680, lng:2.33690 },
+  { g:"louvre", name:"Willi's Wine Bar", type:"בר יין", note:"מוסד יין מ-1980 ליד פאלה-רויאל — כוס יין ואוכל פשוט וטוב.", addr:"13 Rue des Petits Champs, 75001", lat:48.86650, lng:2.33840 },
+  { g:"louvre", name:"À L'Epi d'Or", type:"ביסטרו", note:"ביסטרו ותיק ומקסים — תפריט צהריים משתלם במיוחד (37€) ואווירה של פעם.", addr:"25 Rue Jean-Jacques Rousseau, 75001", lat:48.86450, lng:2.34280 },
+  { g:"louvre", name:"La Bourse et la Vie", type:"ביסטרו", note:"לפי Paris by Mouth מהסטייק-פריט הטובים בפריז — ביסטרו קלאסי בלי פוזה.", addr:"12 Rue Vivienne, 75002", lat:48.86870, lng:2.33990 },
+  { g:"louvre", name:"Café Compagnon", type:"קפה-מסעדה", note:"כל היום ליד מונטורגיי — קפה טוב בבוקר, צלחות יפות בערב, מחירים הוגנים.", addr:"22 Rue Léopold Bellan, 75002", lat:48.86670, lng:2.34520 },
+  { g:"louvre", name:"19 Saint-Roch", type:"מסעדה מודרנית", note:"תפריט קצר וממוקד שמתחלף, דלפק שף — בחירה של Paris by Mouth.", addr:"19 Rue Saint-Roch, 75001", lat:48.86570, lng:2.33190 },
+  { g:"brunch", name:"Claus", type:"ארוחות בוקר · 5 דק' מהמלון", note:"'מוסד ארוחות הבוקר' של פריז — הכל תוצרת בית, איכותי ובלי שואו לתיירים.", addr:"14 Rue Jean-Jacques Rousseau, 75001", lat:48.86390, lng:2.34190 },
+  { g:"brunch", name:"Marcelle", type:"בוקר/בראנץ' · 4 דק' מהמלון", note:"ים-תיכוני בריא וטרי ליד סן-אוסטש — שקשוקה, גרנולה, קפה טוב. פתוח מ-9:00.", addr:"22 Rue Montmartre, 75001", lat:48.86440, lng:2.34400 },
+  { g:"brunch", name:"Echo", type:"בוקר קליפורני · 8 דק' מהמלון", note:"דלי בסגנון LA שגם Le Fooding אוהב — פנקייקים, סנדוויצ'י בוקר וקפה מעולה. מגיעים מוקדם, מתמלא.", addr:"95 Rue d'Aboukir, 75002", lat:48.86828, lng:2.34855 },
+  { g:"brunch", name:"Boneshaker Doughnuts", type:"דונאטס וקפה · 7 דק' מהמלון", note:"הדונאטס הכי טובים בפריז — קונדיטורית אמריקאית בוגרת קורדון בלו. לבוקר מתוק וזריז.", addr:"77 Rue d'Aboukir, 75002", lat:48.86770, lng:2.34960 },
+  { g:"brunch", name:"Benedict", type:"בראנץ' · 10 דק' מהמלון", note:"ממלכת הביצים בנדיקט של המארה — גרסאות עם טירוף כמו טרפלס וגבינת רבלושון.", addr:"19 Rue Sainte-Croix de la Bretonnerie, 75004", lat:48.85800, lng:2.35480 },
+  { g:"louvre", name:"Maslow", type:"צמחוני", note:"צמחוני טרנדי ומצוין מול הסן — מהבודדים במרכז שגם פודיז מכבדים. מחירים הוגנים.", addr:"14 Quai de la Mégisserie, 75001", lat:48.85790, lng:2.34480 },
+
+  // ===== המארה =====
+  { g:"marais", name:"Les Enfants du Marché", type:"דלפק יפני-צרפתי", note:"דלפק בתוך שוק Enfants Rouges — פייבוריט של אנשי האוכל. שימי לב: התפריט מוטה דגים, יש גם מנות בשר.", addr:"39 Rue de Bretagne, 75003", lat:48.86270, lng:2.36170 },
+  { g:"marais", name:"Bistrot des Tournelles", type:"ביסטרו", note:"'הביסטרו הטוב של השנה' של Le Fooding — קלאסיקות במחיר ביסטרו. להזמין מראש.", addr:"6 Rue des Tournelles, 75004", lat:48.85320, lng:2.36710 },
+  { g:"marais", name:"Café des Musées", type:"ביסטרו", note:"ביסטרו במחיר הוגן שגם מקומיים באים אליו — בף בורגיניון מצוין.", addr:"49 Rue de Turenne, 75003", lat:48.85790, lng:2.36460 },
+  { g:"marais", name:"Capitaine", type:"ביסטרו מודרני", note:"שף מ-Astrance לשעבר — צרפתי עם נגיעות אסייתיות בסמטה שקטה, מחיר הוגן לרמה.", addr:"4 bis Impasse Guéménée, 75004", lat:48.85410, lng:2.36600 },
+  { g:"marais", name:"Vins des Pyrénées", type:"ביסטרו-בר יין", note:"שכונתי אמיתי, פתוח מהבוקר עד הלילה — טוב גם לצמחוניים.", addr:"25 Rue Beautreillis, 75004", lat:48.85310, lng:2.36340 },
+  { g:"marais", name:"Maslow Temple", type:"צמחוני", note:"הסניף המאראי של Maslow ליד קארו דו טמפל — צמחוני יצירתי וטרנדי.", addr:"32 Rue de Picardie, 75003", lat:48.86450, lng:2.36230 },
+  { g:"marais", name:"Bonnard", type:"צמחוני", note:"צמחוני מסוגנן בצפון המארה — בחירה של Paris by Mouth.", addr:"18 Rue des Gravilliers, 75003", lat:48.86370, lng:2.35450 },
+  { g:"pasta", name:"Carboni's", type:"איטלקי · המארה", note:"איטלקי מודרני עם יינות טבעיים; בר קוקטיילים Sotto במרתף.", addr:"45 Rue de Poitou, 75003", lat:48.86170, lng:2.36340 },
+  { g:"marais", name:"Breizh Café", type:"קרפרי", note:"גלטים מכוסמת אורגנית — ארוחה מצוינת ב-15-20€. להזמין מקום.", addr:"109 Rue Vieille du Temple, 75003", lat:48.86080, lng:2.36260 },
+  { g:"marais", name:"Candelaria", type:"טאקריה + בר", note:"דלפק טאקוס זעיר וזול עם בר קוקטיילים נסתר מאחורי דלת בלתי מסומנת.", addr:"52 Rue de Saintonge, 75003", lat:48.86280, lng:2.36410 },
+  { g:"marais", name:"Boubalé", type:"לבנטיני-אשכנזי", note:"של אסף גרניט — מודרני ומפנק. היקר ברשימה, אבל שווה את זה.", addr:"17 Rue de la Verrerie, 75004", lat:48.85770, lng:2.35500 },
+  { g:"marais", name:"Miznon", type:"אוכל רחוב ישראלי", note:"של אייל שני — גם Paris by Mouth מציינים שזה מעל ומעבר לרשת רגילה.", addr:"22 Rue des Ecouffes, 75004", lat:48.85670, lng:2.35930 },
+  { g:"marais", name:"L'As du Fallafel", type:"פלאפל", note:"כן, יש תור — אבל כמו שכותבים המבקרים: 'זול, מבולגן וכמעט חובה'. סגור בשבת.", addr:"34 Rue des Rosiers, 75004", lat:48.85710, lng:2.35910 },
+  { g:"marais", name:"La Caféothèque", type:"בית קפה / קלייה", note:"בית הקלייה שפתח את סצנת הקפה הרציני בפריז — פינות ישיבה נעימות.", addr:"52 Rue de l'Hôtel de Ville, 75004", lat:48.85460, lng:2.35650 },
+
+  // ===== מגדל אייפל =====
+  { g:"eiffel", name:"Café des Ministères", type:"ביסטרו קלאסי", note:"קלאסיקות צרפתיות ברמה גבוהה — אהוב על אנשי הרובע, לא על תיירים. (10 דק' מזרחה, כיוון אינווליד)", addr:"83 Rue de l'Université, 75007", lat:48.85890, lng:2.32200 },
+  { g:"eiffel", name:"Café Constant", type:"ביסטרו", note:"של השף כריסטיאן קונסטן — יחס איכות-מחיר מהטובים ברובע. בלי הזמנות, להקדים.", addr:"139 Rue Saint-Dominique, 75007", lat:48.85930, lng:2.30370 },
+  { g:"eiffel", name:"Au Bon Accueil", type:"מסעדה", note:"קטן ואלגנטי בצל המגדל — תפריט שוק במחיר הוגן ונוף לילי מהמם מהרחוב.", addr:"14 Rue de Monttessuy, 75007", lat:48.85950, lng:2.29880 },
+  { g:"eiffel", name:"Pottoka", type:"באסקי", note:"של סבסטיאן גראבה — ביסטרו באסקי איכותי ובמחיר הוגן ליד שאן דה מארס.", addr:"4 Rue de l'Exposition, 75007", lat:48.85860, lng:2.30090 },
+  { g:"eiffel", name:"Les Deux Abeilles", type:"סלון תה", note:"סלון תה ביתי שמקומיות אלגנטיות מחזיקות בו קביעות — קישים ועוגות.", addr:"189 Rue de l'Université, 75007", lat:48.85990, lng:2.29790 },
+
+  // ===== איטלקי =====
+  { g:"pasta", name:"Daroco Bourse", type:"טרטוריה · ליד רובע 1", note:"בסטודיו לשעבר של גוטייה — פסטה טרייה ופיצות מעולות במחיר שפוי. פרס העיצוב של Le Fooding.", addr:"6 Rue Vivienne, 75002", lat:48.86690, lng:2.33940 },
+  { g:"pasta", name:"Pastificio Norma", type:"פסטה · המארה", note:"פסטה סיציליאנית תוצרת בית בצפון המארה — המלצה של Paris by Mouth.", addr:"75 Rue de Turbigo, 75003", lat:48.86560, lng:2.36030 },
+  { g:"pasta", name:"Ober Mamma", type:"טרטוריה · ליד המארה", note:"מקבוצת Big Mamma — פיצה נפוליטנית וקוקטיילים, שמח ולא יקר. מגיעים מוקדם או מזמינים מראש.", addr:"107 Bd Richard-Lenoir, 75011", lat:48.86390, lng:2.36940 },
+  { g:"pasta", name:"Ninetta", type:"פיצריה-טרטוריה · אייפל", note:"פסטה טרייה ופיצות נפוליטניות שני צעדים מהמגדל — פיצה 13-20€, פסטה 16-25€.", addr:"17 Rue Malar, 75007", lat:48.86050, lng:2.30670 },
+  { g:"pasta", name:"Bambini", type:"איטלקי · טרוקדרו", note:"בפאלה דה טוקיו — איטלקי שמח עם טרסה ונוף למגדל. טרנדי אבל טעים.", addr:"13 Av du Président Wilson, 75116", lat:48.86420, lng:2.29680 },
+  { g:"pasta", name:"Dalmata", type:"פיצריה · ליד רובע 1", note:"פיצה נפוליטנית מהמדוברות בעיר — תפריט קצר ומדויק ליד מונטורגיי.", addr:"8 Rue Tiquetonne, 75002", lat:48.86480, lng:2.34880 },
+  { g:"pasta", name:"Pizzeria Popolare", type:"פיצריה · ליד רובע 1", note:"מקבוצת Big Mamma — פיצות מ-8€ באולם ענק ותוסס. התור זז מהר.", addr:"111 Rue Réaumur, 75002", lat:48.86700, lng:2.34400 },
+  { g:"pasta", name:"Grazie", type:"פיצריה · המארה", note:"פיצריה-בר קוקטיילים בשולי המארה — נפוליטנית טובה באווירת לופט.", addr:"91 Bd Beaumarchais, 75003", lat:48.86080, lng:2.36840 },
+  { g:"pasta", name:"East Mamma", type:"טרטוריה · ליד המארה", note:"הסניף הראשון של Big Mamma ליד בסטיליה — פסטה טרייה ופיצות, 10 דק' מהמארה.", addr:"133 Rue du Faubourg Saint-Antoine, 75011", lat:48.85170, lng:2.37350 },
+  { g:"pasta", name:"Eataly Paris Marais", type:"מתחם איטלקי · המארה", note:"מתחם ענק: שוק איטלקי, מסעדות, פיצריה, בר פסטה וג'לטריה — הכל תחת קורת גג אחת. 8 דק' מהמלון.", addr:"37 Rue Sainte-Croix de la Bretonnerie, 75004", lat:48.85840, lng:2.35370 },
+
+  // ===== פטיסרי =====
+  { g:"patiss", name:"Cédric Grolet Opéra", type:"פטיסרי", note:"הפטיסייר המדובר בעולם — פירות הטרומפ-לוי המפורסמים והקרואסון המושלם. תור, אבל מהיר.", addr:"35 Av de l'Opéra, 75002", lat:48.86770, lng:2.33320 },
+  { g:"patiss", name:"Sébastien Gaudard", type:"פטיסרי", note:"'הפטיסרי הקלאסית המושלמת' — מיל-פיי ואקלרים כמו שצריך, צעדים מהלובר.", addr:"1 Rue des Pyramides, 75001", lat:48.86390, lng:2.33190 },
+  { g:"patiss", name:"Stohrer", type:"פטיסרי", note:"הפטיסרי העתיקה בפריז (1730) ברחוב מונטורגיי — הבאבה או-רום הומצא כאן.", addr:"51 Rue Montorgueil, 75002", lat:48.86500, lng:2.34620 },
+  { g:"patiss", name:"Fou de Pâtisserie", type:"פטיסרי (קונספט)", note:"חנות שמרכזת את היצירות הטובות של מיטב הפטיסיירים בעיר — טעימה מהכל במקום אחד.", addr:"45 Rue Montorgueil, 75002", lat:48.86480, lng:2.34600 },
+  { g:"patiss", name:"Ritz Le Comptoir", type:"פטיסרי", note:"של פרנסואה פרה מהריץ — המדלן המפורסמת שלו. יוקרתי אבל עוגה זה עדיין ~10€.", addr:"38 Rue Cambon, 75001", lat:48.86780, lng:2.32650 },
+  { g:"patiss", name:"Jacques Genin", type:"שוקולד + פטיסרי", note:"אגדת השוקולד והקרמל של פריז — טארט הלימון נחשב מהטובים בעיר. סלון תה במקום.", addr:"133 Rue de Turenne, 75003", lat:48.86370, lng:2.36460 },
+  { g:"patiss", name:"Pain de Sucre", type:"פטיסרי", note:"פטיסרי יצירתית ליד מרכז פומפידו — מרשמלו ביתי וטארטים מפתיעים.", addr:"14 Rue Rambuteau, 75003", lat:48.86110, lng:2.35520 },
+  { g:"patiss", name:"Yann Couvreur", type:"פטיסרי", note:"מהדור החדש המדובר — קוואפים (kouign-amann) ומיל-פיי שמרכיבים במקום. סניף ברו דה רוזייה.", addr:"23 bis Rue des Rosiers, 75004", lat:48.85720, lng:2.35850 },
+  { g:"patiss", name:"Bontemps", type:"פטיסרי / סלון תה", note:"טארטים על בצק סבלה שנמסים בפה — מהיפות והטעימות במארה, עם חצר נסתרת.", addr:"57 Rue de Bretagne, 75003", lat:48.86360, lng:2.36070 },
+  { g:"patiss", name:"Aux Merveilleux de Fred", type:"מרנג / מרוויי", note:"המרוויי — עוגות מרנג-קרם צפון-צרפתיות — טריות מול העיניים. זול וממכר. ליד רו קלר.", addr:"94 Rue Saint-Dominique, 75007", lat:48.85940, lng:2.30570 },
+  { g:"patiss", name:"La Pâtisserie Cyril Lignac", type:"פטיסרי", note:"של סיריל ליניאק — אקווימיל והטארטים המצולמים. 15 דק' מהמגדל, כיוון אלמה.", addr:"2 Rue de Chaillot, 75116", lat:48.86560, lng:2.29700 },
+  { g:"patiss", name:"Mori Yoshida", type:"פטיסרי", note:"פטיסייר יפני-צרפתי שהפודיז חוצים את העיר בשבילו — מון-בלאן ושו מושלמים. (ליד אינווליד)", addr:"65 Av de Breteuil, 75007", lat:48.84780, lng:2.31200 },
+
+  // ===== שוקולד =====
+  { g:"choco", name:"PLAQ Chocolat", type:"בין-טו-בר · ליד רובע 1", note:"מניפקטורת שוקולד bean-to-bar — והשוקו החם שמדברים עליו בכל העיר. ברחוב של Frenchie.", addr:"4 Rue du Nil, 75002", lat:48.86730, lng:2.34720 },
+  { g:"choco", name:"Jean-Paul Hévin", type:"שוקולטייה · רובע 1", note:"מגדולי השוקולטיירים של צרפת (MOF) — פרלינים ומקרוני שוקולד ברו סנט-אונורה.", addr:"231 Rue Saint-Honoré, 75001", lat:48.86560, lng:2.32990 },
+  { g:"choco", name:"Le Chocolat Alain Ducasse", type:"שוקולטייה · רובע 1", note:"השוקולד של דוקאס — קליית פולים עצמית, טעמים עמוקים. ליד שוק סנט-אונורה.", addr:"Rue du Marché Saint-Honoré, 75001", lat:48.86680, lng:2.33120 },
+  { g:"choco", name:"Edwart Chocolatier", type:"שוקולטייה · המארה", note:"שוקולטייה צעיר ומבריק שדיוויד לבוביץ' מהלל — טעמים לא שגרתיים. יש סניף גם ברו דה ריבולי 244.", addr:"17 Rue Vieille du Temple, 75004", lat:48.85740, lng:2.35800 },
+  { g:"choco", name:"À la Mère de Famille", type:"שוקולד וממתקים · אייפל", note:"חנות הממתקים הוותיקה בפריז (1761) — הסניף ברו קלר, שני צעדים מהמגדל.", addr:"47 Rue Cler, 75007", lat:48.85660, lng:2.30560 },
+  { g:"choco", name:"Debauve & Gallais", type:"שוקולטייה היסטורי", note:"השוקולטייה של מלכי צרפת (1800) — חנות-מוזיאון בסן-ז'רמן, בדרך בין האייפל למארה.", addr:"30 Rue des Saints-Pères, 75007", lat:48.85570, lng:2.33050 },
+
+  // ===== אופנה =====
+  { g:"fashion", name:"L'Appartement Sézane", type:"אופנה צרפתית", note:"הפלגשיפ של סזאן — המותג הצרפתי שכולן מחפשות ואין בארץ. מחירים בינוניים, שווה להגיע מוקדם.", addr:"1 Rue Saint-Fiacre, 75002", lat:48.87020, lng:2.34460 },
+  { g:"fashion", name:"Rouje", type:"אופנה צרפתית", note:"המותג של ז'אן דמאס — פריזאיות אמיתי, שמלות וגופיות. אין בארץ.", addr:"11 bis Rue Bachaumont, 75002", lat:48.86650, lng:2.34540 },
+  { g:"fashion", name:"Merci", type:"קונספט סטור", note:"הקונספט סטור המפורסם של פריז — אופנה, בית ועיצוב. יש גם קפה ספרים חמוד.", addr:"111 Bd Beaumarchais, 75003", lat:48.86120, lng:2.36700 },
+  { g:"fashion", name:"COS (Marais)", type:"אופנה", note:"המותג המינימליסטי של קבוצת H&M — אין בישראל. סניף יפה ברו דה רוזייה.", addr:"4 Rue des Rosiers, 75004", lat:48.85680, lng:2.36080 },
+  { g:"fashion", name:"& Other Stories", type:"אופנה", note:"עוד מותג של הקבוצה שאין בארץ — שמלות ואקססוריז במחירים שפויים. ליד הטווילרי.", addr:"277 Rue Saint-Honoré, 75001", lat:48.86610, lng:2.32730 },
+  { g:"fashion", name:"Uniqlo Le Marais", type:"אופנה", note:"אין יוניקלו בישראל — והסניף הזה יושב בחצר היסטורית מהממת במארה.", addr:"39 Rue des Francs-Bourgeois, 75004", lat:48.85850, lng:2.35870 },
+  { g:"fashion", name:"Kilo Shop", type:"וינטג' במשקל", note:"וינטג' שמשלמים לפי משקל — חוויה שאין בארץ, אפשר לצאת עם מציאות בזול.", addr:"69-71 Rue de la Verrerie, 75004", lat:48.85780, lng:2.35340 },
+
+  // ===== נעליים =====
+  { g:"shoes", name:"Jonak", type:"נעליים ~100-150€", note:"מותג נעליים פריזאי אהוב — מגפונים, בלרינות ולואפרים בעור אמיתי.", addr:"22 Rue des Francs-Bourgeois, 75003", lat:48.85770, lng:2.36100 },
+  { g:"shoes", name:"Minelli", type:"נעליים ~80-140€", note:"קלאסיקה צרפתית — עור טוב במחיר הוגן, סניף גדול ליד ה-BHV.", addr:"96 Rue de Rivoli, 75004", lat:48.85770, lng:2.35190 },
+  { g:"shoes", name:"VEJA Marais", type:"סניקרס ~100-150€", note:"חנות הדגל של VEJA — כל הדגמים, כולל בלעדיים, ומרכז תיקון סניקרס.", addr:"15 Rue de Poitou, 75003", lat:48.86190, lng:2.36370 },
+  { g:"shoes", name:"Bensimon — Autour du Monde", type:"סניקרס ~40-80€", note:"נעלי הבד הצרפתיות האיקוניות — זולות, קלות, בכל הצבעים. חנות מקסימה במארה.", addr:"8 Rue des Francs-Bourgeois, 75003", lat:48.85700, lng:2.36430 },
+];
+
+const COLORS = { louvre:"#2563eb", marais:"#dc2626", eiffel:"#059669", patiss:"#7c3aed", pasta:"#ea580c", choco:"#92400e", fashion:"#db2777", shoes:"#0891b2", brunch:"#f59e0b" };
+const GROUP_NAMES = { louvre:"רובע 1 / לובר", marais:"המארה", eiffel:"מגדל אייפל", patiss:"פטיסרי", pasta:"איטלקי", choco:"שוקולד", fashion:"אופנה", shoes:"נעליים", brunch:"בוקר ליד המלון" };
+
+const map = L.map("map").setView([48.8600, 2.3300], 13);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+}).addTo(map);
+
+function makeIcon(color) {
+  return L.divIcon({
+    className: "",
+    html: `<svg width="30" height="42" viewBox="0 0 30 42" xmlns="http://www.w3.org/2000/svg">
+      <path d="M15 0C6.7 0 0 6.7 0 15c0 11 15 27 15 27s15-16 15-27C30 6.7 23.3 0 15 0z" fill="${color}"/>
+      <circle cx="15" cy="15" r="6" fill="#fff"/></svg>`,
+    iconSize: [30, 42], iconAnchor: [15, 42], popupAnchor: [0, -40]
+  });
+}
+
+const layers = { louvre: L.layerGroup(), marais: L.layerGroup(), eiffel: L.layerGroup(), patiss: L.layerGroup(), pasta: L.layerGroup(), choco: L.layerGroup(), fashion: L.layerGroup(), shoes: L.layerGroup(), brunch: L.layerGroup() };
+
+PLACES.forEach(p => {
+  const q = encodeURIComponent(p.name + ", " + p.addr + ", Paris");
+  const html = `<div class="popup">
+    <h3>${p.name}</h3>
+    <div class="type">${p.type} · ${GROUP_NAMES[p.g]}</div>
+    <div class="note">${p.note}</div>
+    <div class="addr">${p.addr}</div>
+    <a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">פתיחה ב-Google Maps ↗</a>
+  </div>`;
+  L.marker([p.lat, p.lng], { icon: makeIcon(COLORS[p.g]) }).bindPopup(html).addTo(layers[p.g]);
+});
+
+Object.values(layers).forEach(l => l.addTo(map));
+
+// סימון קבוע של המלון (תמיד מוצג)
+const hotelIcon = L.divIcon({
+  className: "",
+  html: `<svg width="36" height="48" viewBox="0 0 30 42" xmlns="http://www.w3.org/2000/svg">
+    <path d="M15 0C6.7 0 0 6.7 0 15c0 11 15 27 15 27s15-16 15-27C30 6.7 23.3 0 15 0z" fill="#111827"/>
+    <text x="15" y="20" text-anchor="middle" font-size="14">🏨</text></svg>`,
+  iconSize: [36, 48], iconAnchor: [18, 48], popupAnchor: [0, -46]
+});
+L.marker([48.86050, 2.34790], { icon: hotelIcon, zIndexOffset: 1000 })
+  .bindPopup(`<div class="popup"><h3>🏨 Citadines Les Halles</h3><div class="note">המלון שלך — נקודת המוצא לכל המפה.</div><div class="addr">4 Rue des Innocents, 75001</div></div>`)
+  .addTo(map);
+
+["louvre", "marais", "eiffel", "patiss", "pasta", "choco", "fashion", "shoes", "brunch"].forEach(g => {
+  const btn = document.getElementById("f-" + g);
+  btn.addEventListener("click", () => {
+    if (map.hasLayer(layers[g])) { map.removeLayer(layers[g]); btn.classList.add("off"); }
+    else { layers[g].addTo(map); btn.classList.remove("off"); }
+  });
+});
+</script>
+</body>
+</html>
